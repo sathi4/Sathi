@@ -1,5 +1,4 @@
 const fs = require('fs');
-const { createCanvas, loadImage } = require('canvas');
 const path = require('path');
 
 const coinsFile = path.join(__dirname, 'coins.json');
@@ -21,70 +20,19 @@ function saveCoins() {
 
 module.exports.config = {
     name: "bet",
-    version: "1.5.0",
+    version: "1.6.0",
     aliases: ["gamble", "slots"],
     credits: "VK. SAIM",
-    description: "Casino game with coins and profile picture",
+    description: "Simple Casino game with coins (Text only)",
     commandCategory: "fun",
     usages: "{pn} [coin|slot]",
     hasPermssion: 0
 };
 
-// Generate result image
-async function generateImage(username, avatarUrl, resultText, coins) {
-    const canvas = createCanvas(500, 350);
-    const ctx = canvas.getContext('2d');
-
-    // background
-    ctx.fillStyle = '#222';
-    ctx.fillRect(0, 0, 500, 350);
-
-    // profile picture
-    let avatar;
-    try { avatar = await loadImage(avatarUrl); } catch { avatar = null; }
-    if (avatar) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(70, 70, 50, 0, Math.PI * 2);
-        ctx.closePath();
-        ctx.clip();
-        ctx.drawImage(avatar, 20, 20, 100, 100);
-        ctx.restore();
-    }
-
-    // username
-    ctx.fillStyle = '#FFD700';
-    ctx.font = 'bold 28px Arial';
-    ctx.fillText(username, 150, 60);
-
-    // result text
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 36px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(resultText, 250, 180);
-
-    // coins
-    ctx.fillStyle = '#00FF00';
-    ctx.font = 'bold 30px Arial';
-    ctx.fillText(`Coins: ${coins}`, 250, 280);
-
-    fs.writeFileSync('bet_result.png', canvas.toBuffer('image/png'));
-    return fs.createReadStream('bet_result.png');
-}
-
 module.exports.run = async ({ api, event, args }) => {
     if (!args[0]) return api.sendMessage("❌ Please choose a game: coin or slot\nExample: bet coin", event.threadID, event.messageID);
-    const game = args[0].toLowerCase();
 
-    // get user info
-    let userName = "Player";
-    let userAvatar = null;
-    try {
-        const info = await api.getUserInfo(event.senderID);
-        const user = info[event.senderID];
-        userName = user.name || "Player";
-        userAvatar = user.profileUrl || user.avatar || null;
-    } catch {}
+    const game = args[0].toLowerCase();
 
     // initialize coins
     if (!coinsData[event.senderID]) {
@@ -104,10 +52,10 @@ module.exports.run = async ({ api, event, args }) => {
 
         if (win) {
             coins += 20;
-            resultText = `${outcome} | You Win! 🎉`;
+            resultText = `🎲 Coin Flip Result: ${outcome}\n🎉 You Win! +20 coins`;
         } else {
             coins -= 15;
-            resultText = `${outcome} | You Lose! 😢`;
+            resultText = `🎲 Coin Flip Result: ${outcome}\n😢 You Lose! -15 coins`;
         }
 
     } else if (game === "slot") {
@@ -118,14 +66,15 @@ module.exports.run = async ({ api, event, args }) => {
 
         if (slot1 === slot2 && slot2 === slot3) {
             coins += 500;
-            resultText = `${slot1} | ${slot2} | ${slot3}\nJackpot! 🎉`;
+            resultText = `🎰 Slot Result: ${slot1} | ${slot2} | ${slot3}\n🎉 Jackpot! +500 coins`;
         } else if (slot1===slot2 || slot2===slot3 || slot1===slot3) {
             coins += 50;
-            resultText = `${slot1} | ${slot2} | ${slot3}\nSmall Win! ✨`;
+            resultText = `🎰 Slot Result: ${slot1} | ${slot2} | ${slot3}\n✨ Small Win! +50 coins`;
         } else {
             coins -= 15;
-            resultText = `${slot1} | ${slot2} | ${slot3}\nYou Lose! 😢`;
+            resultText = `🎰 Slot Result: ${slot1} | ${slot2} | ${slot3}\n😢 You Lose! -15 coins`;
         }
+
     } else {
         return api.sendMessage("❌ Invalid game. Choose 'coin' or 'slot'.", event.threadID, event.messageID);
     }
@@ -134,6 +83,5 @@ module.exports.run = async ({ api, event, args }) => {
     coinsData[event.senderID] = coins;
     saveCoins();
 
-    const img = await generateImage(userName, userAvatar, resultText, coins);
-    return api.sendMessage({ body: "🎲 Bet Result:", attachment: img }, event.threadID, () => fs.unlinkSync('bet_result.png'), event.messageID);
+    return api.sendMessage(`${resultText}\n💰 Your Current Coins: ${coins}`, event.threadID, event.messageID);
 };
