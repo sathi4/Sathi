@@ -1,105 +1,25 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs"); const path = __dirname + "/coinxbalance.json";
 
-const coinsFile = path.join(__dirname, 'coins.json');
+// coinxbalance.json না থাকলে বানানো if (!fs.existsSync(path)) { fs.writeFileSync(path, JSON.stringify({}, null, 2)); }
 
-let coinsData = {};
-if (fs.existsSync(coinsFile)) {
-    try {
-        coinsData = JSON.parse(fs.readFileSync(coinsFile, 'utf-8'));
-    } catch { coinsData = {}; }
-}
+// ব্যালেন্স পড়া function getBalance(userID) { const data = JSON.parse(fs.readFileSync(path)); if (data[userID]?.balance != null) return data[userID].balance;
 
-function saveCoins() {
-    fs.writeFileSync(coinsFile, JSON.stringify(coinsData, null, 2));
-}
+if (userID === "61566961113103") return 50000000; // তুমি 50M$ if (userID === "ADMIN_ID_HERE") return 999999999; // Admin Power: Saim return 100; // অন্যরা 100$ }
 
-function luckyNumber() {
-    return Math.floor(Math.random() * 100) + 1;
-}
+// ব্যালেন্স আপডেট function setBalance(userID, balance) { const data = JSON.parse(fs.readFileSync(path)); data[userID] = { balance }; fs.writeFileSync(path, JSON.stringify(data, null, 2)); }
 
-function slotEmojis() {
-    const emojis = ["🍒","🍋","🍉","🍇","⭐","💎","🎱"];
-    return [emojis[Math.floor(Math.random()*emojis.length)],
-            emojis[Math.floor(Math.random()*emojis.length)],
-            emojis[Math.floor(Math.random()*emojis.length)]];
-}
+// ব্যালেন্স ফরম্যাটিং function formatBalance(num) { if (num >= 1e12) return (num / 1e12).toFixed(2).replace(/.00$/, '') + "T$"; if (num >= 1e9) return (num / 1e9).toFixed(2).replace(/.00$/, '') + "B$"; if (num >= 1e6) return (num / 1e6).toFixed(2).replace(/.00$/, '') + "M$"; if (num >= 1e3) return (num / 1e3).toFixed(2).replace(/.00$/, '') + "k$"; return num + "$"; }
 
-function formatCoins(num) {
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
+module.exports.config = { name: "bet", version: "1.1.0", hasPermssion: 0, credits: "Akash × ChatGPT", description: "Place a bet: win 3x,4x,8x,20x,50x coins!", commandCategory: "Economy", usages: "bet <amount>", cooldowns: 5 };
 
-module.exports.config = {
-    name: "bet",
-    version: "3.1.0",
-    aliases: ["dau","gamble"],
-    credits: "VK. SAIM",
-    description: "Unique Bet Game with coins, emojis & profile picture",
-    commandCategory: "fun",
-    usages: "{pn}",
-    hasPermssion: 0
-};
+module.exports.run = async function({ api, event, args }) { const { senderID, threadID, messageID } = event; let balance = getBalance(senderID);
 
-module.exports.run = async ({ api, event }) => {
-    // get user info
-    let userName = "Player";
-    let userAvatar = null;
-    try {
-        const info = await api.getUserInfo(event.senderID);
-        const user = info[event.senderID];
-        userName = user.name || "Player";
-        userAvatar = user.profileUrl || user.avatar || null;
-    } catch {}
+if (!args[0] || isNaN(args[0])) return api.sendMessage("❌ Please enter a valid bet amount.", threadID, messageID);
 
-    // initialize coins
-    if (!coinsData[event.senderID]) {
-        coinsData[event.senderID] = (event.senderID === "61566961113103") ? 100000000 : 100;
-    }
+let betAmount = parseInt(args[0]); if (betAmount <= 0) return api.sendMessage("❌ Bet amount must be greater than 0.", threadID, messageID); if (betAmount > balance) return api.sendMessage("❌ You don't have enough Coins to bet that amount.", threadID, messageID);
 
-    let coins = coinsData[event.senderID];
-    let resultText = "";
-    const gameChoice = Math.random() < 0.5 ? "coin" : "slot";
+const multipliers = [3, 4, 8, 20, 50]; const chosenMultiplier = multipliers[Math.floor(Math.random() * multipliers.length)];
 
-    if (gameChoice === "coin") {
-        const outcome = Math.random() < 0.5 ? "🪙 Heads" : "🪙 Tails";
-        const win = Math.random() < 0.5;
-        const lucky = luckyNumber();
+const win = Math.random() < 0.5; // 50% chance
 
-        if (win) {
-            const gain = 20 + Math.floor(Math.random()*30); // 20-49 coins
-            coins += gain;
-            resultText = `🎲 Coin Flip Result: ${outcome}\n🎉 Lucky #${lucky} → You Win +${formatCoins(gain)} coins!`;
-        } else {
-            const loss = 10 + Math.floor(Math.random()*20); // 10-29 coins
-            coins -= loss;
-            resultText = `🎲 Coin Flip Result: ${outcome}\n😢 Lucky #${lucky} → You Lose -${formatCoins(loss)} coins!`;
-        }
-
-    } else { // Slot Machine
-        const [s1,s2,s3] = slotEmojis();
-        const lucky = luckyNumber();
-
-        if (s1===s2 && s2===s3) {
-            const gain = 500 + Math.floor(Math.random()*500); // 500-999
-            coins += gain;
-            resultText = `🎰 Slot Result: ${s1} | ${s2} | ${s3}\n🎉 JACKPOT! Lucky #${lucky} → +${formatCoins(gain)} coins!`;
-        } else if (s1===s2 || s2===s3 || s1===s3) {
-            const gain = 50 + Math.floor(Math.random()*50); // 50-99
-            coins += gain;
-            resultText = `🎰 Slot Result: ${s1} | ${s2} | ${s3}\n✨ Small Win! Lucky #${lucky} → +${formatCoins(gain)} coins!`;
-        } else {
-            const loss = 15 + Math.floor(Math.random()*20); // 15-34
-            coins -= loss;
-            resultText = `🎰 Slot Result: ${s1} | ${s2} | ${s3}\n😢 You Lose! Lucky #${lucky} → -${formatCoins(loss)} coins!`;
-        }
-    }
-
-    coinsData[event.senderID] = coins;
-    saveCoins();
-
-    // Final text output
-    let message = `👤 Player: ${userName}\n💰 Coins: ${formatCoins(coins)}\n\n${resultText}`;
-    if (userAvatar) message += `\n🖼️ Profile: ${userAvatar}`;
-
-    return api.sendMessage(message, event.threadID, event.messageID);
-};
+if (win) { const winAmount = betAmount * chosenMultiplier; balance += winAmount; setBalance(senderID, balance); return api.sendMessage( 🎉 You won the bet!\n💰 Bet: ${formatBalance(betAmount)}\n⚡ Multiplier: ${chosenMultiplier}x\n📌 New Balance: ${formatBalance(balance)}, threadID, messageID ); } else { balance -= betAmount; if (balance < 0) balance = 0; setBalance(senderID, balance); return api.sendMessage( ❌ You lost the bet!\n💰 Bet: ${formatBalance(betAmount)}\n📌 New Balance: ${formatBalance(balance)}, threadID, messageID ); } };
